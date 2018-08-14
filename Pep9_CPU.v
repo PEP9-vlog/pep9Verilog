@@ -355,7 +355,7 @@ module ALU(
                 //Cout <= ??
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
                 Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
-                Vout <= (AluOpt_C == 8'd0) && (C == 1'd1)? 1'd1: 1'd0; // HOW overflow?  
+                Vout <= ((AluInp1_A[7] == 'b0) && (AluInp2_B[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluInp2_B[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0; 
                 CCk <= 1'd1;
                 VCk <= 1'd1;
                 end
@@ -366,7 +366,7 @@ module ALU(
                 //Cout <= ??
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
                 Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
-                Vout <= (AluOpt_C == 8'd0) && (C == 1'd1)? 1'd1: 1'd0;  // HOW overflow?  
+                Vout <= ((AluInp1_A[7] == 'b0) && (AluInp2_B[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluInp2_B[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
                 end
@@ -377,7 +377,7 @@ module ALU(
                 //Cout <= ??
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
                 Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
-                Vout <= (AluOpt_C == 8'd0) && (C == 1'd1)? 1'd1: 1'd0;// HOW overflow?  
+                Vout <= ((AluInp1_A[7] == 'b0) && (AluInp2_B[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluInp2_B[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
                 end            
@@ -388,7 +388,7 @@ module ALU(
                 //Cout <= ??
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
                 Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
-                Vout <= (AluOpt_C == 8'd0) && (C == 1'd1)? 1'd1: 1'd0; // HOW overflow?  
+                Vout <= ((AluInp1_A[7] == 'b0) && (AluInp2_B[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluInp2_B[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0;
                 CCk <= 1'd1;
                 VCk <= 1'd1;
                 end            
@@ -465,7 +465,7 @@ module ALU(
                 Cout <=  AluInp1_A[7];
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
                 Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
-                Vout <= (AluOpt_C == 8'd0) && (C == 1'd1)? 1'd1: 1'd0;  
+                Vout <= ((AluInp1_A[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
                 end
@@ -476,7 +476,7 @@ module ALU(
                 //status bits    
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
                 Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
-                Vout <= (AluOpt_C == 8'd0) && (C == 1'd1)? 1'd1: 1'd0; // HOW overflow?  
+                Vout <= ((AluInp1_A[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
                 end
@@ -549,6 +549,7 @@ module ALU(
     end
 	end
 endmodule
+
 
 //Store: tsores the result of the operation perfomed to Reg File
 module Store(
