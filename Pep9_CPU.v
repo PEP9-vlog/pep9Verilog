@@ -22,38 +22,86 @@ module Top_Pep9CPU(
  input [7:0] InstructionSpecifier,
  input Cin);
  
-    wire Ex, St, Done;
+    parameter s0 = 3'b000, s1 = 3'b001, s2 = 3'b010, s3 = 3'b011, s4 = 3'b100;
+ 
+    reg Dec, Ex, St;
+    reg [0:2] state;
+    wire DoneDec, DoneExec, DoneSt;
     wire [7:0] AluInp1_A, AluInp2_B ;
     wire [4:0] OutReg;
     wire [3:0] alu_control;
-    reg Dec;
     
-    initial begin Dec = 1'b1;  end
-    
+    initial 
+    begin 
+        state = s0;
+        Dec = 1'b0;
+        Ex = 1'b0;
+        St = 1'b0;
+    end
+  
     always@(posedge Sysclk)
     begin
-//        if(!resetbar)
-//            //fecth <= 1;, PC = 16'd0;
-//            Dec = 1'b1;
-//        else 
-//            Dec = 1'b0;
+        if(resetbar == 1'b0)
+            state = s1;
+        
+        case(state)
+        s0: //fetch
+            state = s1;
+        
+        s1: //Decode
+            if(Dec == 1'b1)
+            begin
+                Ex = DoneDec;
+                state = Ex? s2: s1;
+            end
+            else
+            begin
+                Dec = 1'b1;  
+                Ex = 1'b0;  
+                St = 1'b0;  
+            end     
+        
+        s2: //Execute
+            if(Ex == 1'b1)
+            begin
+                St = DoneExec;
+                state = St? s3: s2;
+            end
+            else
+            begin
+                Dec = 1'b0;  
+                Ex = 1'b1;  
+                St = 1'b0;  
+            end       
+                
+        s3: //Store
+            if(St == 1'b1)
+            begin
+                Dec = DoneSt;
+                state = Dec? s1: s3;
+            end
+            else
+            begin
+                Dec = 1'b0;  
+                Ex = 1'b0;  
+                St = 1'b1;  
+            end
+                
+        endcase
     end  
-
-    Decode Pep9dec(Ex, OutReg, AluInp1_A,  AluInp2_B, alu_control, Dec, Sysclk, InstructionSpecifier);
-    Execute Pep9exe(St, AluOpt_C, S, C, V, Z, N, Ex, Sysclk, AluInp1_A,  AluInp2_B, alu_control,  Cin );
-    Store Pep9st(Done, St, Sysclk, OutReg, AluOpt_C);
     
-    always@(Done) 
-    begin
-        if(Done) 
-            Dec = 1'b1;
+    Decode Pep9dec(DoneSt, DoneDec, OutReg, AluInp1_A,  AluInp2_B, alu_control, Dec, Sysclk, InstructionSpecifier);
+    Execute Pep9exe( DoneDec, DoneExec, AluOpt_C, S, C, V, Z, N, Ex, Sysclk, AluInp1_A,  AluInp2_B, alu_control,  Cin );
+    Store Pep9st(DoneExec,DoneSt, St, Sysclk, OutReg, AluOpt_C);
+    
 
-    end
 endmodule 
+
 
 //Decode: Instruction decode to identify type of operation and its operands
 module Decode(
- output reg Ex,
+ output reg DoneSt,
+ output reg DoneDec,
  output reg [4:0] OutReg, 
  output [7:0] Oprnd1, 
  output [7:0] Oprnd2, 
@@ -74,12 +122,14 @@ module Decode(
         A <= 'bz;
         B <='bz;
         DecodeState = 3'd0;
+        DoneDec = 'b0;
     end
     
     always@(posedge Sysclk)
     begin
         if(Dec)
         begin
+            DoneSt = 'b0;
             //check unary or non unary
             if(InstructionSpecifier[7:4] > 4'd0)
             begin
@@ -117,7 +167,7 @@ module Decode(
                 LoadCk <= 1'b1;
                 
             end
-            Ex <= 1'b1;
+            DoneDec = 1'b1;
         end
     end
     
@@ -275,9 +325,11 @@ module Decode(
     
 endmodule
 
+
 //Execute: Performs the operation decoded through ALU 
 module Execute(
- output reg St, 
+ output reg DoneDec, 
+ output reg DoneEx, 
  output [7:0] AluOpt_C,
  output S,
  output C,
@@ -292,16 +344,23 @@ module Execute(
  input  Cin //Carry-in 
  );
 
+    initial 
+    begin 
+        DoneEx = 'b0;
+    end
+    
+    always@(posedge Sysclk)  if(Ex) DoneDec = 'b0;
+    
 	ALU alu_exe1(AluOpt_C, S, C, V, Z, N, Ex, Sysclk, AluInp1_A, AluInp2_B,  alu_control,  Cin );
 	
 	always@(AluOpt_C)
 	begin
-	       St <= 1;
+	       DoneEx = 1'b1;
 	end
 	       
 endmodule
 
-//Execute - ALU 
+//Execute - ALU
 module ALU(
  output reg [7:0] AluOpt_C,  //result 
  output reg S, 
@@ -343,7 +402,7 @@ module ALU(
                 //status bits
                 Cout <=  1'd0;
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -354,7 +413,7 @@ module ALU(
                 //status bits    
                 //Cout <= ??
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= ((AluInp1_A[7] == 'b0) && (AluInp2_B[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluInp2_B[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0; 
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -365,7 +424,7 @@ module ALU(
                 //status bits    
                 //Cout <= ??
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= ((AluInp1_A[7] == 'b0) && (AluInp2_B[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluInp2_B[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -376,7 +435,7 @@ module ALU(
                 //status bits    
                 //Cout <= ??
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= ((AluInp1_A[7] == 'b0) && (AluInp2_B[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluInp2_B[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -387,7 +446,7 @@ module ALU(
                 //status bits    
                 //Cout <= ??
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= ((AluInp1_A[7] == 'b0) && (AluInp2_B[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluInp2_B[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0;
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -398,7 +457,7 @@ module ALU(
                 //status bits        
                 Cout <=  1'd0;
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -409,7 +468,7 @@ module ALU(
                 //status bits            
                 Cout <=  1'd0;
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -420,7 +479,7 @@ module ALU(
                 //status bits            
                 Cout <=  1'd0;
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -431,7 +490,7 @@ module ALU(
                 //status bits    
                 Cout <=  1'd0;
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -442,7 +501,7 @@ module ALU(
                 //status bits    
                 Cout <=  1'd0;
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -453,7 +512,7 @@ module ALU(
                 //status bits    
                 C <=  1'd0;
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 V <= 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -464,7 +523,7 @@ module ALU(
                 //status bits
                 Cout <=  AluInp1_A[7];
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= ((AluInp1_A[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -475,7 +534,7 @@ module ALU(
                 AluOpt_C <= {(AluInp1_A << 1),AluInp1_A[7]}; //ROL A
                 //status bits    
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
                 Vout <= ((AluInp1_A[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -486,7 +545,7 @@ module ALU(
                 //status bits        
                 Cout <=  AluInp1_A[0];
                 Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C < 8'd0)? 1'd1: 1'd0; 
+                Nout <= (AluOpt_C[7] == 1'b1)? 1'd1: 1'd0; 
                 Vout <= 1'd0;  
                 CCk <= 1'd1;
                 VCk <= 1'd1;
@@ -550,10 +609,10 @@ module ALU(
 	end
 endmodule
 
-
-//Store: tsores the result of the operation perfomed to Reg File
+//Store: stores the result of the operation perfomed to Reg File
 module Store(
- output reg Dec,
+ output reg DoneEx,
+ output reg DoneSt,
  input St,
  input Sysclk,
  input [4:0] OutReg,
@@ -565,15 +624,15 @@ module Store(
     initial 
     begin 
         LoadCk = 1'b0; 
-        Dec = 1'b0; 
     end
     
     always@(posedge Sysclk)
     begin
         if(St)
         begin
+            DoneEx <= 'b0;
             LoadCk = 1'b1;
-            Dec = 1'b1;
+            #100 DoneSt <= 1'b1;
         end
         else
             LoadCk = 1'b0;
@@ -582,6 +641,7 @@ module Store(
     RegSet stores(Abus, Bbus, Sysclk, OutputData, 'bz, 'bz, OutReg, LoadCk);
 
 endmodule
+
 
 //Helper modules
 //Reg file
