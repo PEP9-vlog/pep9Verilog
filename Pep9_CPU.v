@@ -51,24 +51,29 @@ module Top_Pep9CPU(
         s1: //Decode
             if(Dec == 1'b1)
             begin
-                Ex = DoneDec;
-                state = Ex? s2: s1;
+				$display("decoding %b", DoneDec);
+                if(DoneDec == 1'b1) 
+                    state = s2;
+                $display("decoding %b", DoneDec);
             end
             else
             begin
                 Dec = 1'b1;  
                 Ex = 1'b0;  
-                St = 1'b0;  
+                St = 1'b0; 
+                $display("Enable decode"); 
             end     
         
         s2: //Execute
             if(Ex == 1'b1)
             begin
-                St = DoneExec;
-                state = St? s3: s2;
+                $display("exe %b", DoneExec);
+                if(DoneExec == 1'b1) 
+                    state = s3;
             end
             else
             begin
+				$display("Enable exec");
                 Dec = 1'b0;  
                 Ex = 1'b1;  
                 St = 1'b0;  
@@ -77,14 +82,16 @@ module Top_Pep9CPU(
         s3: //Store
             if(St == 1'b1)
             begin
-                Dec = DoneSt;
-                state = Dec? s1: s3;
-            end
+				$display("storing %b", DoneSt);
+				if(DoneSt == 1'b1) 
+					state = s1;
+				end
             else
             begin
-                Dec = 1'b0;  
-                Ex = 1'b0;  
-                St = 1'b1;  
+				$display("st");
+				Dec = 1'b0;  
+				Ex = 1'b0;  
+				St = 1'b1;  
             end
                 
         endcase
