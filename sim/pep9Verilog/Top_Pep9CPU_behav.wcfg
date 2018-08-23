@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="testbench_Pep9_CPU_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="glbl" />
+            <top_module name="testbench_Pep9_CPU" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="3999444166666fs"></ZoomStartTime>
+      <ZoomEndTime time="4000111166667fs"></ZoomEndTime>
+      <Cursor1Time time="4000000000000fs"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="180"></NameColumnWidth>
+      <ValueColumnWidth column_width="118"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="36" />
+   <wave_markers>
+      <marker time="2776198805000" label="" />
+   </wave_markers>
+   <wvobject fp_name="/testbench_Pep9_CPU/Sysclk" type="logic">
+      <obj_property name="ElementShortName">Sysclk</obj_property>
+      <obj_property name="ObjectShortName">Sysclk</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/resetbar" type="logic">
+      <obj_property name="ElementShortName">resetbar</obj_property>
+      <obj_property name="ObjectShortName">resetbar</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/Cin" type="logic">
+      <obj_property name="ElementShortName">Cin</obj_property>
+      <obj_property name="ObjectShortName">Cin</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/InstructionSpecifier" type="array">
+      <obj_property name="ElementShortName">InstructionSpecifier[7:0]</obj_property>
+      <obj_property name="ObjectShortName">InstructionSpecifier[7:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/AluOpt_C" type="array">
+      <obj_property name="ElementShortName">AluOpt_C[7:0]</obj_property>
+      <obj_property name="ObjectShortName">AluOpt_C[7:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/S" type="logic">
+      <obj_property name="ElementShortName">S</obj_property>
+      <obj_property name="ObjectShortName">S</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/C" type="logic">
+      <obj_property name="ElementShortName">C</obj_property>
+      <obj_property name="ObjectShortName">C</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/V" type="logic">
+      <obj_property name="ElementShortName">V</obj_property>
+      <obj_property name="ObjectShortName">V</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/Z" type="logic">
+      <obj_property name="ElementShortName">Z</obj_property>
+      <obj_property name="ObjectShortName">Z</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/N" type="logic">
+      <obj_property name="ElementShortName">N</obj_property>
+      <obj_property name="ObjectShortName">N</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/AluOpt_C" type="array">
+      <obj_property name="ElementShortName">AluOpt_C[7:0]</obj_property>
+      <obj_property name="ObjectShortName">AluOpt_C[7:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/S" type="logic">
+      <obj_property name="ElementShortName">S</obj_property>
+      <obj_property name="ObjectShortName">S</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/C" type="logic">
+      <obj_property name="ElementShortName">C</obj_property>
+      <obj_property name="ObjectShortName">C</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/V" type="logic">
+      <obj_property name="ElementShortName">V</obj_property>
+      <obj_property name="ObjectShortName">V</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/Z" type="logic">
+      <obj_property name="ElementShortName">Z</obj_property>
+      <obj_property name="ObjectShortName">Z</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/N" type="logic">
+      <obj_property name="ElementShortName">N</obj_property>
+      <obj_property name="ObjectShortName">N</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/Sysclk" type="logic">
+      <obj_property name="ElementShortName">Sysclk</obj_property>
+      <obj_property name="ObjectShortName">Sysclk</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/resetbar" type="logic">
+      <obj_property name="ElementShortName">resetbar</obj_property>
+      <obj_property name="ObjectShortName">resetbar</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/InstructionSpecifier" type="array">
+      <obj_property name="ElementShortName">InstructionSpecifier[7:0]</obj_property>
+      <obj_property name="ObjectShortName">InstructionSpecifier[7:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/Cin" type="logic">
+      <obj_property name="ElementShortName">Cin</obj_property>
+      <obj_property name="ObjectShortName">Cin</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/Dec" type="logic">
+      <obj_property name="ElementShortName">Dec</obj_property>
+      <obj_property name="ObjectShortName">Dec</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/Ex" type="logic">
+      <obj_property name="ElementShortName">Ex</obj_property>
+      <obj_property name="ObjectShortName">Ex</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/St" type="logic">
+      <obj_property name="ElementShortName">St</obj_property>
+      <obj_property name="ObjectShortName">St</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/state" type="array">
+      <obj_property name="ElementShortName">state[0:2]</obj_property>
+      <obj_property name="ObjectShortName">state[0:2]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/DoneDec" type="logic">
+      <obj_property name="ElementShortName">DoneDec</obj_property>
+      <obj_property name="ObjectShortName">DoneDec</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/DoneExec" type="logic">
+      <obj_property name="ElementShortName">DoneExec</obj_property>
+      <obj_property name="ObjectShortName">DoneExec</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/DoneSt" type="logic">
+      <obj_property name="ElementShortName">DoneSt</obj_property>
+      <obj_property name="ObjectShortName">DoneSt</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/AluInp1_A" type="array">
+      <obj_property name="ElementShortName">AluInp1_A[7:0]</obj_property>
+      <obj_property name="ObjectShortName">AluInp1_A[7:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/AluInp2_B" type="array">
+      <obj_property name="ElementShortName">AluInp2_B[7:0]</obj_property>
+      <obj_property name="ObjectShortName">AluInp2_B[7:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/OutReg" type="array">
+      <obj_property name="ElementShortName">OutReg[4:0]</obj_property>
+      <obj_property name="ObjectShortName">OutReg[4:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/alu_control" type="array">
+      <obj_property name="ElementShortName">alu_control[3:0]</obj_property>
+      <obj_property name="ObjectShortName">alu_control[3:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/s0" type="array">
+      <obj_property name="ElementShortName">s0[2:0]</obj_property>
+      <obj_property name="ObjectShortName">s0[2:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/s1" type="array">
+      <obj_property name="ElementShortName">s1[2:0]</obj_property>
+      <obj_property name="ObjectShortName">s1[2:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/s2" type="array">
+      <obj_property name="ElementShortName">s2[2:0]</obj_property>
+      <obj_property name="ObjectShortName">s2[2:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/s3" type="array">
+      <obj_property name="ElementShortName">s3[2:0]</obj_property>
+      <obj_property name="ObjectShortName">s3[2:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/testbench_Pep9_CPU/pep9/s4" type="array">
+      <obj_property name="ElementShortName">s4[2:0]</obj_property>
+      <obj_property name="ObjectShortName">s4[2:0]</obj_property>
+   </wvobject>
+</wave_config>

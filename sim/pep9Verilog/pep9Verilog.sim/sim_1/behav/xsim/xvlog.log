@@ -1,0 +1,12 @@
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/PSUProj/ece361f18/pep9Verilog/Pep9_CPU.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module Top_Pep9CPU
+INFO: [VRFC 10-311] analyzing module Decode
+INFO: [VRFC 10-311] analyzing module Execute
+INFO: [VRFC 10-311] analyzing module ALU
+INFO: [VRFC 10-311] analyzing module Store
+INFO: [VRFC 10-311] analyzing module RegSet
+INFO: [VRFC 10-311] analyzing module Mux
+INFO: [VRFC 10-311] analyzing module AccessMDR
+INFO: [VRFC 10-311] analyzing module AccessMAR
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/PSUProj/ece361f18/pep9Verilog/testbench_Pep9_CPU.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module testbench_Pep9_CPU

@@ -1,0 +1,14 @@
+#-----------------------------------------------------------
+# Webtalk v2017.4.1 (64-bit)
+# SW Build 2117270 on Tue Jan 30 15:32:00 MST 2018
+# IP Build 2095745 on Tue Jan 30 17:13:15 MST 2018
+# Start of session at: Thu Aug 23 15:30:08 2018
+# Process ID: 16672
+# Current directory: C:/PSUProj/ece361f18/pep9Verilog/sim/pep9Verilog/pep9Verilog.sim/sim_1/impl/func/xsim
+# Command line: wbtcv.exe -mode batch -source C:/PSUProj/ece361f18/pep9Verilog/sim/pep9Verilog/pep9Verilog.sim/sim_1/impl/func/xsim/xsim.dir/Top_Pep9CPU_func_impl/webtalk/xsim_webtalk.tcl -notrace
+# Log file: C:/PSUProj/ece361f18/pep9Verilog/sim/pep9Verilog/pep9Verilog.sim/sim_1/impl/func/xsim/webtalk.log
+# Journal file: C:/PSUProj/ece361f18/pep9Verilog/sim/pep9Verilog/pep9Verilog.sim/sim_1/impl/func/xsim\webtalk.jou
+#-----------------------------------------------------------
+source C:/PSUProj/ece361f18/pep9Verilog/sim/pep9Verilog/pep9Verilog.sim/sim_1/impl/func/xsim/xsim.dir/Top_Pep9CPU_func_impl/webtalk/xsim_webtalk.tcl -notrace
+INFO: [Common 17-186] 'C:/PSUProj/ece361f18/pep9Verilog/sim/pep9Verilog/pep9Verilog.sim/sim_1/impl/func/xsim/xsim.dir/Top_Pep9CPU_func_impl/webtalk/usage_statistics_ext_xsim.xml' has been successfully sent to Xilinx on Thu Aug 23 15:30:10 2018. For additional details about this file, please refer to the WebTalk help file at C:/Xilinx/Vivado/2017.4/doc/webtalk_introduction.html.
+INFO: [Common 17-206] Exiting Webtalk at Thu Aug 23 15:30:10 2018...

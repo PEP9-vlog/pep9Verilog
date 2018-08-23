@@ -1,0 +1,7 @@
+INFO: [VRFC 10-2263] Analyzing Verilog file "C:/PSUProj/ece361f18/pep9Verilog/sim/pep9Verilog/pep9Verilog.sim/sim_1/impl/func/xsim/Top_Pep9CPU_func_impl.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module ALU
+INFO: [VRFC 10-311] analyzing module Decode
+INFO: [VRFC 10-311] analyzing module Execute
+INFO: [VRFC 10-311] analyzing module RegSet
+INFO: [VRFC 10-311] analyzing module Top_Pep9CPU
+INFO: [VRFC 10-311] analyzing module glbl
