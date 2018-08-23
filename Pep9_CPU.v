@@ -31,83 +31,83 @@ module Top_Pep9CPU(
     wire [4:0] OutReg;
     wire [3:0] alu_control;
     
-    initial 
-    begin 
-        state = s0;
-        Dec = 1'b0;
-        Ex = 1'b0;
-        St = 1'b0;
-    end
+   initial 
+      begin 
+          state <= s0;
+          Dec <= 1'b0;
+          Ex <= 1'b0;
+          St <= 1'b0;
+      end
+    
+      always@(posedge Sysclk)
+      begin
+          if(resetbar == 1'b0)
+              state <= s1;
+          
+          case(state)
+          s0: //fetch
+              state <= s1;
+          
+          s1: //Decode
+              if(Dec == 1'b1)
+              begin
+                  $display("decoding %b", DoneDec);
+                  if(DoneDec == 1'b1) 
+                      state <= s2;
+                  $display("decoding %b", DoneDec);
+              end
+              else
+              begin
+                  Dec <= 1'b1;  
+                  Ex <= 1'b0;  
+                  St <= 1'b0; 
+                  $display("Enable decode"); 
+              end     
+          
+          s2: //Execute
+              if(Ex == 1'b1)
+              begin
+                  $display("exe %b", DoneExec);
+                  if(DoneExec == 1'b1) 
+                      state <= s3;
+              end
+              else
+              begin
+                  $display("Enable exec");
+                  Dec <= 1'b0;  
+                  Ex <= 1'b1;  
+                  St <= 1'b0;  
+              end       
+                  
+          s3: //Store
+              if(St == 1'b1)
+              begin
+                  $display("storing %b", DoneSt);
+                  if(DoneSt == 1'b1) 
+                      state <= s1;
+                  end
+              else
+              begin
+                  $display("st");
+                  Dec <= 1'b0;  
+                  Ex <= 1'b0;  
+                  St <= 1'b1;  
+              end
+                  
+          endcase
+      end  
+         
+    Decode Pep9dec( DoneDec, OutReg, AluInp1_A,  AluInp2_B, alu_control, Dec, Sysclk, InstructionSpecifier);
+    Execute Pep9exe(  DoneExec, AluOpt_C, S, C, V, Z, N, Ex, Sysclk, AluInp1_A,  AluInp2_B, alu_control,  Cin );
+    Store Pep9st(DoneSt, St, Sysclk, OutReg, AluOpt_C);
+    
   
-    always@(posedge Sysclk)
-    begin
-        if(resetbar == 1'b0)
-            state = s1;
-        
-        case(state)
-        s0: //fetch
-            state = s1;
-        
-        s1: //Decode
-            if(Dec == 1'b1)
-            begin
-				$display("decoding %b", DoneDec);
-                if(DoneDec == 1'b1) 
-                    state = s2;
-                $display("decoding %b", DoneDec);
-            end
-            else
-            begin
-                Dec = 1'b1;  
-                Ex = 1'b0;  
-                St = 1'b0; 
-                $display("Enable decode"); 
-            end     
-        
-        s2: //Execute
-            if(Ex == 1'b1)
-            begin
-                $display("exe %b", DoneExec);
-                if(DoneExec == 1'b1) 
-                    state = s3;
-            end
-            else
-            begin
-				$display("Enable exec");
-                Dec = 1'b0;  
-                Ex = 1'b1;  
-                St = 1'b0;  
-            end       
-                
-        s3: //Store
-            if(St == 1'b1)
-            begin
-				$display("storing %b", DoneSt);
-				if(DoneSt == 1'b1) 
-					state = s1;
-				end
-            else
-            begin
-				$display("st");
-				Dec = 1'b0;  
-				Ex = 1'b0;  
-				St = 1'b1;  
-            end
-                
-        endcase
-    end  
-    
-    Decode Pep9dec(DoneSt, DoneDec, OutReg, AluInp1_A,  AluInp2_B, alu_control, Dec, Sysclk, InstructionSpecifier);
-    Execute Pep9exe( DoneDec, DoneExec, AluOpt_C, S, C, V, Z, N, Ex, Sysclk, AluInp1_A,  AluInp2_B, alu_control,  Cin );
-    Store Pep9st(DoneExec,DoneSt, St, Sysclk, OutReg, AluOpt_C);
-    
 
 endmodule 
 
 
 //Decode: Instruction decode to identify type of operation and its operands
 module Decode(
- output reg DoneSt,
  output reg DoneDec,
  output reg [4:0] OutReg, 
  output [7:0] Oprnd1, 
@@ -136,7 +136,6 @@ module Decode(
     begin
         if(Dec)
         begin
-            DoneSt = 'b0;
             //check unary or non unary
             if(InstructionSpecifier[7:4] > 4'd0)
             begin
@@ -335,7 +334,6 @@ endmodule
 
 //Execute: Performs the operation decoded through ALU 
 module Execute(
- output reg DoneDec, 
  output reg DoneEx, 
  output [7:0] AluOpt_C,
  output S,
@@ -356,7 +354,7 @@ module Execute(
         DoneEx = 'b0;
     end
     
-    always@(posedge Sysclk)  if(Ex) DoneDec = 'b0;
+
     
 	ALU alu_exe1(AluOpt_C, S, C, V, Z, N, Ex, Sysclk, AluInp1_A, AluInp2_B,  alu_control,  Cin );
 	
@@ -618,7 +616,6 @@ endmodule
 
 //Store: stores the result of the operation perfomed to Reg File
 module Store(
- output reg DoneEx,
  output reg DoneSt,
  input St,
  input Sysclk,
@@ -637,7 +634,6 @@ module Store(
     begin
         if(St)
         begin
-            DoneEx <= 'b0;
             LoadCk = 1'b1;
             #100 DoneSt <= 1'b1;
         end
