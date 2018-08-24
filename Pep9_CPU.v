@@ -19,21 +19,22 @@ module Top_Pep9CPU(
  output N,
  input Sysclk,
  input resetbar,
- input [7:0] InstructionSpecifier,
+// input [7:0] InstructionSpecifier,
  input Cin);
  
     parameter s0 = 3'b000, s1 = 3'b001, s2 = 3'b010, s3 = 3'b011, s4 = 3'b100;
  
-    reg Dec, Ex, St;
+    reg Ftch, Dec, Ex, St;
     reg [0:2] state;
-    wire DoneDec, DoneExec, DoneSt;
+    wire DoneFtch, DoneDec, DoneExec, DoneSt;
     wire [7:0] AluInp1_A, AluInp2_B ;
     wire [4:0] OutReg;
     wire [3:0] alu_control;
-    
+    wire [7:0] InstructionSpecifier;
    initial 
       begin 
           state <= s0;
+          Ftch <= 1'b0;
           Dec <= 1'b0;
           Ex <= 1'b0;
           St <= 1'b0;
@@ -46,34 +47,42 @@ module Top_Pep9CPU(
           
           case(state)
           s0: //fetch
-              state <= s1;
-          
+                if(Ftch == 1'b1)
+                begin
+                    if(DoneFtch == 1'b1) 
+                        state <= s1;
+                end
+                else
+                begin
+                    Ftch <= 1'b1;  
+                    Dec <= 1'b0;  
+                    Ex <= 1'b0;  
+                    St <= 1'b0; 
+                end
+                
           s1: //Decode
               if(Dec == 1'b1)
               begin
-                  $display("decoding %b", DoneDec);
                   if(DoneDec == 1'b1) 
                       state <= s2;
-                  $display("decoding %b", DoneDec);
               end
               else
               begin
+                  Ftch <= 1'b0;
                   Dec <= 1'b1;  
                   Ex <= 1'b0;  
-                  St <= 1'b0; 
-                  $display("Enable decode"); 
+                  St <= 1'b0;  
               end     
           
           s2: //Execute
               if(Ex == 1'b1)
               begin
-                  $display("exe %b", DoneExec);
                   if(DoneExec == 1'b1) 
                       state <= s3;
               end
               else
               begin
-                  $display("Enable exec");
+                  Ftch <= 1'b0;
                   Dec <= 1'b0;  
                   Ex <= 1'b1;  
                   St <= 1'b0;  
@@ -82,13 +91,12 @@ module Top_Pep9CPU(
           s3: //Store
               if(St == 1'b1)
               begin
-                  $display("storing %b", DoneSt);
                   if(DoneSt == 1'b1) 
                       state <= s1;
                   end
               else
               begin
-                  $display("st");
+                  Ftch <= 1'b0;
                   Dec <= 1'b0;  
                   Ex <= 1'b0;  
                   St <= 1'b1;  
@@ -96,15 +104,64 @@ module Top_Pep9CPU(
                   
           endcase
       end  
-         
+     
+    //example memory fetch of instruction at address 
+    Fetch Pep9ftch(DoneFtch, InstructionSpecifier, Sysclk, Ftch );
+    
+    //Pipeline stages     
     Decode Pep9dec( DoneDec, OutReg, AluInp1_A,  AluInp2_B, alu_control, Dec, Sysclk, InstructionSpecifier);
     Execute Pep9exe(  DoneExec, AluOpt_C, S, C, V, Z, N, Ex, Sysclk, AluInp1_A,  AluInp2_B, alu_control,  Cin );
     Store Pep9st(DoneSt, St, Sysclk, OutReg, AluOpt_C);
-    
-  
 
 endmodule 
 
+//Fetch: fetches instruction from address specified by PC
+module Fetch(
+ output done, 
+ output [7:0] InstructionSpecifier, 
+ input Sysclk, 
+ input Ftch 
+ );
+    
+    wire [15:0] PC, address;
+    reg LoadCk, MARCk, apbclocken;
+    
+    initial 
+    begin
+        LoadCk <= 'b0;
+        MARCk <= 'b0;
+        apbclocken <= 0;
+    end
+    
+    always@(Ftch)
+    if(Ftch)
+        LoadCk <= 'b1;
+    
+    //Get PC
+    RegSet loadpc( PC[15:8],  PC[7:0], Sysclk, 'bz, 6, 7,  'bz, LoadCk);
+        
+    always@(PC)
+    begin
+        LoadCk <= 'b0;
+        MARCk <= 'b1;
+    end
+        
+    //Form 16-bit address
+    AccessMAR loadaddr(address , Sysclk, MARCk,PC[15:8], PC[7:0]);
+ 
+    always@(address)
+    begin
+        MARCk <= 'b0;
+        apbclocken <= 1;
+    end
+        
+    //Get instruciton specifier from memory
+    apb_top Pep9apb( apbclocken ? Sysclk: 'b0, address, 'bz, 'b0, InstructionSpecifier, done);
+   
+    always@(done)
+        apbclocken <= 0;
+       
+endmodule
 
 //Decode: Instruction decode to identify type of operation and its operands
 module Decode(
@@ -829,5 +886,3 @@ module AccessMAR(
 		end
 	end
 endmodule
-
-
