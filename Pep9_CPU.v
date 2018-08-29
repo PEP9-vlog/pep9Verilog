@@ -167,26 +167,35 @@ endmodule
 module Decode(
  output reg DoneDec,
  output reg [4:0] OutReg, 
- output [7:0] Oprnd1, 
- output [7:0] Oprnd2, 
+ output reg [7:0] Oprnd1, 
+ output reg [7:0] Oprnd2, 
  output reg [3:0] alu_ctrl, 
  input Dec, 
  input Sysclk, 
  input [7:0] InstructionSpecifier);
 
     integer unstatus;
-    reg r, LoadCk;
+    reg r, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux;
     reg [4:0] A,B;
-    reg [2:0] DecodeState;
+    reg [2:0] DecodeState, direct_state;
+    wire MemDone;
+    wire [7:0] Abus, Bbus, DataBus, MDROut, MDRInp;
+    wire [15:0] address;
       
     initial 
     begin 
-        unstatus = 'bz; 
-        LoadCk = 1'd0;
+        unstatus <= 'bz; 
+        LoadCk <= 1'd0;
+        MARCk <= 1'd0;
+        ApbClockEn <= 1'd0;
+        MDRMux <= 1'd0;
+        MDRCk <= 1'd0;
+        Amux <= 1'd0;
         A <= 'bz;
         B <='bz;
-        DecodeState = 3'd0;
-        DoneDec = 'b0;
+        DecodeState <= 3'd0;
+        DoneDec <= 'b0;
+        direct_state <= 'b0;
     end
     
     always@(posedge Sysclk)
@@ -203,17 +212,23 @@ module Decode(
                 3'd1:   //Fecth OS lower byte
                         DecodeState <= 3'd2;
                         
-                3'd2:   //Decode operation
+                3'd2:   //Addressing mode and Oprnd2
                         begin
-                        NonUnaryOperationDecode(alu_ctrl,A,OutReg,InstructionSpecifier[7:3]);     
-                        DecodeState <= 3'd3;
+						AddressingMode(DecodeState, direct_state, A, B, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, MemDone, InstructionSpecifier[2:0]); 						
                         end 
-                3'd3: //Addressing mode and Oprnd2
+                3'd3:   //Decode operation 
                         begin
-                        AddressingMode(B,InstructionSpecifier[2:0]);
+						LoadCk <= 1'b0;
+                        NonUnaryOperationDecode(alu_ctrl,A,OutReg,InstructionSpecifier[7:3]);
                         LoadCk <= 1'b1;
-//                        DecodeState <= 3'd4;
-                        end   
+                        DecodeState <= 3'd4;
+                        end  
+                3'd4:   //Assign Operands
+                        begin
+                        LoadCk <= 1'b0;
+                        Oprnd1 <= Abus;
+                        Oprnd2 <= Bbus;
+                        end 
                 endcase
             end
             else
@@ -230,11 +245,22 @@ module Decode(
                 LoadCk <= 1'b1;
                 
             end
-            DoneDec = 1'b1;
+            DoneDec <= 1'b1;
         end
     end
     
-    RegSet DecInputs(Oprnd1, Oprnd2, Sysclk,'bz, A, B, 'bz, LoadCk);
+    always@(DoneDec)
+    begin
+        Oprnd1 <= Abus;
+        Oprnd2 <= Bbus;
+    end
+    
+    RegSet DecInputs(Abus, Bbus, Sysclk,'bz, A, B, 'bz, LoadCk);
+    AccessMAR DecMAR( address, Sysclk, MARCk,Abus, Bbus);
+    apb_top Decapb( ApbClockEn ? Sysclk: 'b0, address, 'bz, 'b0, DataBus, MemDone);
+    Mux DecMDRMux( MDRInp, Sysclk, DataBus, 'bz, MDRMux);
+    AccessMDR DecMDR( MDROut, Sysclk, MDRCk, MDRInp );
+    Mux DecAMux( Bbus, Sysclk, MDROut, Bbus, Amux); //Should be A bus
     
     task UnaryOperationDecode;
         output [3:0] alu_ctrl;
@@ -375,17 +401,102 @@ module Decode(
     endtask
     
     task AddressingMode;
-        output [4:0] B;
+        output DecodeState;
+        output direct_state;
+        output [4:0] A, B;
+        output LoadCk;
+        output MARCk;
+        output ApbClockEn;
+        output MDRMux;
+        output MDRCk;
+        output Amux; 
+        input MemDone;
         input [2:0] aaa;
         //input [15:0] OperationSpecifier;
         case(aaa)
         3'd0:    //Immediate
-                B = 5'd10;
+                begin
+                    B <= 5'd10;
+                    LoadCk <= 1'b1;
+                    DecodeState <= 3'd3;
+                end
+        3'd1:   //Direct
+                begin
+                    DirectAddressing(direct_state, A, B,LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, DecodeState, MemDone);
+                end
                 
         default: ;        
         endcase
     endtask
     
+	task DirectAddressing;
+	    output [2:0] direct_state;
+		output [4:0] A, B;
+        output LoadCk;
+        output MARCk;
+        output ApbClockEn;
+        output MDRMux;
+        output MDRCk;
+        output Amux;
+		output DecodeState;
+		input MemDone;
+		
+		case(direct_state)
+			3'd0:	//Set Address on Abus and Bbus
+					begin
+						A <= 9;
+						B <= 10;
+						LoadCk <= 1;
+						direct_state <= 3'd1;
+					end
+			
+			3'd1:	//AccessMAR
+					begin
+						LoadCk <= 'b0;
+						A <= 'bz;
+						B <= 'bz;
+						MARCk <= 'b1;
+						direct_state <= 3'd2;
+					end
+					
+			3'd2:	//Enable read on System Bus
+					begin
+						ApbClockEn <= 'b1;
+						if(MemDone)
+							direct_state <= 3'd3;
+					end
+					
+			3'd3:	//MDRmux
+					begin
+						ApbClockEn <= 'b0;
+						MDRMux <= 'b1;
+						direct_state <= 3'd4;
+					end			
+					
+		    3'd4:	//MDR
+					begin
+						MDRMux <= 'b0;
+						MDRCk <= 'b1;
+						direct_state <= 3'd5;
+					end
+			
+			3'd5:	//Amux
+					begin
+						MDRCk <= 'b0;
+						Amux <= 'b1;
+						direct_state <= 3'd6;
+					end
+					
+			3'd6:	//Clear all control signals
+					begin
+					   Amux <= 'b0;
+					   DecodeState <= 3'd3;
+					   direct_state <= 3'd0;
+					end
+		endcase
+		
+	endtask
+	
 endmodule
 
 
