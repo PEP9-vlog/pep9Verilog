@@ -117,7 +117,7 @@ endmodule
 
 //Fetch: fetches instruction from address specified by PC
 module Fetch(
- output done, 
+ output donemem, 
  output [7:0] InstructionSpecifier, 
  input Sysclk, 
  input Ftch 
@@ -125,41 +125,69 @@ module Fetch(
     
     wire [15:0] PC, address;
     reg LoadCk, MARCk, apbclocken;
+	reg [1:0] FetchState;
+	reg [4:0] A, B;
     
     initial 
     begin
+		FetchState <= 2'd0;
         LoadCk <= 'b0;
         MARCk <= 'b0;
-        apbclocken <= 0;
+        apbclocken <= 'b0;
     end
     
-    always@(Ftch)
-    if(Ftch)
-        LoadCk <= 'b1;
+    always@(posedge Sysclk)
+	begin
+		if(Ftch)
+		begin
+			case(FetchState)
+			2'd0: //reg set for PC to on Abus and Bbus
+					begin
+						A <= 6;
+						B <= 7;
+						LoadCk <= 1'b1;
+						FetchState <= 2'd1;
+					end
+					
+			2'd1: //MAR
+					begin
+						A <= 'bz;
+						B <= 'bz;
+						LoadCk <= 1'b0;
+						MARCk <= 1'b1;
+						FetchState <= 2'd2;
+					end
+			2'd2: //Memory Read
+					begin
+				        MARCk <= 'b0;
+						apbclocken <= 1'b1;
+						FetchState <= 2'd3;
+					end			
+			
+			2'd3: //Chck for mem operation complete
+					begin
+				        if(donemem)
+							apbclocken <= 0;
+						FetchState <= 2'd0;
+					end
+			endcase
+		end
+	end
     
     //Get PC
-    RegSet loadpc( PC[15:8],  PC[7:0], Sysclk, 'bz, 6, 7,  'bz, LoadCk);
-        
-    always@(PC)
-    begin
-        LoadCk <= 'b0;
-        MARCk <= 'b1;
-    end
+    RegSet loadpc( PC[15:8],  PC[7:0], Sysclk, 'bz, A, B,  'bz, LoadCk);
         
     //Form 16-bit address
     AccessMAR loadaddr(address , Sysclk, MARCk,PC[15:8], PC[7:0]);
- 
-    always@(address)
-    begin
-        MARCk <= 'b0;
-        apbclocken <= 1;
-    end
         
     //Get instruciton specifier from memory
-    apb_top Pep9apb( apbclocken ? Sysclk: 'b0, address, 'bz, 'b0, InstructionSpecifier, done);
-   
-    always@(done)
-        apbclocken <= 0;
+   SystemBus Pep9apbftch(
+        .DoneMem(donemem),
+        .DatatoRead(InstructionSpecifier),
+        .DatatoWrite('bz),
+        .we('b0),
+        .address(address),
+        .Sysclk(apbclocken ? Sysclk: 'b0));
        
 endmodule
 
@@ -174,28 +202,27 @@ module Decode(
  input Sysclk, 
  input [7:0] InstructionSpecifier);
 
-    integer unstatus;
     reg r, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux;
     reg [4:0] A,B;
-    reg [2:0] DecodeState, direct_state;
+    reg [2:0] DecodeState,DecodeStateBuf, direct_state;
     wire MemDone;
     wire [7:0] Abus, Bbus, DataBus, MDROut, MDRInp;
     wire [15:0] address;
       
     initial 
     begin 
-        unstatus <= 'bz; 
         LoadCk <= 1'd0;
         MARCk <= 1'd0;
         ApbClockEn <= 1'd0;
         MDRMux <= 1'd0;
         MDRCk <= 1'd0;
         Amux <= 1'd0;
-        A <= 'bz;
-        B <='bz;
-        DecodeState <= 3'd0;
-        DoneDec <= 'b0;
-        direct_state <= 'b0;
+        A <= 5'bzzzzz;
+        B <= 5'bzzzzz;
+        DecodeState <= 3'd2;
+        DecodeStateBuf <= 3'd2;
+        DoneDec <= 1'b0;
+        direct_state <= 3'd0;
     end
     
     always@(posedge Sysclk)
@@ -214,7 +241,8 @@ module Decode(
                         
                 3'd2:   //Addressing mode and Oprnd2
                         begin
-						AddressingMode(DecodeState, direct_state, A, B, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, MemDone, InstructionSpecifier[2:0]); 						
+						AddressingMode(DecodeStateBuf, direct_state, A, B, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, MemDone, InstructionSpecifier[2:0]); 						
+                        DecodeState <= DecodeStateBuf;
                         end 
                 3'd3:   //Decode operation 
                         begin
@@ -228,6 +256,7 @@ module Decode(
                         LoadCk <= 1'b0;
                         Oprnd1 <= Abus;
                         Oprnd2 <= Bbus;
+                        DoneDec <= 1'b1;
                         end 
                 endcase
             end
@@ -243,21 +272,23 @@ module Decode(
                 A <= r? 5'd3: 5'd1;
                 B <= 'bz;
                 LoadCk <= 1'b1;
-                
+                DoneDec <= 1'b1;
             end
-            DoneDec <= 1'b1;
+            
         end
     end
-    
-    always@(DoneDec)
-    begin
-        Oprnd1 <= Abus;
-        Oprnd2 <= Bbus;
-    end
-    
+        
     RegSet DecInputs(Abus, Bbus, Sysclk,'bz, A, B, 'bz, LoadCk);
     AccessMAR DecMAR( address, Sysclk, MARCk,Abus, Bbus);
-    apb_top Decapb( ApbClockEn ? Sysclk: 'b0, address, 'bz, 'b0, DataBus, MemDone);
+    
+    SystemBus Decapb(
+        .DoneMem(MemDone),
+        .DatatoRead(DataBus),
+        .DatatoWrite('bz),
+        .we('b0),
+        .address(address),
+        .Sysclk(ApbClockEn ? Sysclk: 'b0));
+        
     Mux DecMDRMux( MDRInp, Sysclk, DataBus, 'bz, MDRMux);
     AccessMDR DecMDR( MDROut, Sysclk, MDRCk, MDRInp );
     Mux DecAMux( Bbus, Sysclk, MDROut, Bbus, Amux); //Should be A bus
@@ -401,7 +432,7 @@ module Decode(
     endtask
     
     task AddressingMode;
-        output DecodeState;
+        output DecodeStateBuf;
         output direct_state;
         output [4:0] A, B;
         output LoadCk;
@@ -418,11 +449,11 @@ module Decode(
                 begin
                     B <= 5'd10;
                     LoadCk <= 1'b1;
-                    DecodeState <= 3'd3;
+                    DecodeStateBuf <= 3'd3;
                 end
         3'd1:   //Direct
                 begin
-                    DirectAddressing(direct_state, A, B,LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, DecodeState, MemDone);
+                    DirectAddressing(direct_state, A, B,LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, DecodeStateBuf, MemDone);
                 end
                 
         default: ;        
@@ -438,59 +469,59 @@ module Decode(
         output MDRMux;
         output MDRCk;
         output Amux;
-		output DecodeState;
+		output DecodeStateBuf;
 		input MemDone;
 		
 		case(direct_state)
 			3'd0:	//Set Address on Abus and Bbus
 					begin
-						A <= 9;
-						B <= 10;
-						LoadCk <= 1;
+						A <= 5'd9;
+						B <= 5'd10;
+						LoadCk <= 1'b1;
 						direct_state <= 3'd1;
 					end
 			
 			3'd1:	//AccessMAR
 					begin
-						LoadCk <= 'b0;
-						A <= 'bz;
-						B <= 'bz;
-						MARCk <= 'b1;
+						LoadCk <= 1'b0;
+						A <= 5'bzzzzz;
+						B <= 5'bzzzzz;
+						MARCk <= 1'b1;
 						direct_state <= 3'd2;
 					end
 					
 			3'd2:	//Enable read on System Bus
 					begin
-						ApbClockEn <= 'b1;
+						ApbClockEn <= 1'b1;
 						if(MemDone)
 							direct_state <= 3'd3;
 					end
 					
 			3'd3:	//MDRmux
 					begin
-						ApbClockEn <= 'b0;
-						MDRMux <= 'b1;
+						ApbClockEn <= 1'b0;
+						MDRMux <= 1'b1;
 						direct_state <= 3'd4;
 					end			
 					
 		    3'd4:	//MDR
 					begin
-						MDRMux <= 'b0;
-						MDRCk <= 'b1;
+						MDRMux <= 1'b0;
+						MDRCk <= 1'b1;
 						direct_state <= 3'd5;
 					end
 			
 			3'd5:	//Amux
 					begin
-						MDRCk <= 'b0;
-						Amux <= 'b1;
+						MDRCk <= 1'b0;
+						Amux <= 1'b1;
 						direct_state <= 3'd6;
 					end
 					
 			3'd6:	//Clear all control signals
 					begin
-					   Amux <= 'b0;
-					   DecodeState <= 3'd3;
+					   Amux <= 1'b0;
+					   DecodeStateBuf <= 3'd3;
 					   direct_state <= 3'd0;
 					end
 		endcase
@@ -815,6 +846,24 @@ endmodule
 
 
 //Helper modules
+//System Bus: APB
+module SystemBus(
+    output DoneMem,
+    output [7:0] DatatoRead,
+    input [7:0] DatatoWrite,
+    input we,
+    input [15:0] address,
+    input Sysclk);
+
+    apb_top Pep9apb( .sysclk(Sysclk),
+    .address(address),
+    .writeData(DatatoWrite),
+    .we(we),
+    .readData(DatatoRead),
+    .done(DoneMem));
+
+endmodule
+
 //Reg file
 module RegSet(
 	output reg [7:0] Abus, 
