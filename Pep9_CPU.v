@@ -434,7 +434,8 @@ module Decode(
     task AddressingMode;
         output DecodeStateBuf;
         output direct_state;
-        output [4:0] A, B;
+        output [4:0] A;
+		output [4:0] B;
         output LoadCk;
         output MARCk;
         output ApbClockEn;
@@ -462,7 +463,8 @@ module Decode(
     
 	task DirectAddressing;
 	    output [2:0] direct_state;
-		output [4:0] A, B;
+		output [4:0] A;
+		output [4:0] B;
         output LoadCk;
         output MARCk;
         output ApbClockEn;
