@@ -22,10 +22,11 @@
 
 module testbench_Pep9_CPU;
 
-	reg Sysclk, resetbar, Cin;
-	reg [7:0] InstructionSpecifier;
-	wire  [7:0] AluOpt_C;
-	wire S, C, V, Z, N;
+	reg Sysclk, resetbar, Cin, we;
+	reg [15:0] address;
+	reg [7:0] writeData;
+	wire  [7:0] AluOpt_C, readData;
+	wire S, C, V, Z, N, done;
 
 	Top_Pep9CPU pep9( 
 	   .AluOpt_C(AluOpt_C),
@@ -36,22 +37,34 @@ module testbench_Pep9_CPU;
 		.N(N),
 		.Sysclk(Sysclk),
 		.resetbar(resetbar),
-		.InstructionSpecifier(InstructionSpecifier),
 		.Cin(Cin));
 	
 	initial 
 	begin
-		Sysclk = 'b0;
+		Sysclk <= 'b0;
 		resetbar <= 1;
-		InstructionSpecifier <= 8'h08;
-		Cin = 'b0;
-		
+		Cin <= 'b0;
+	    address <= 16'h00;
+        writeData <= 8'h61;
+        we <= 1;
+        if(done)
+            begin
+                address <= 16'bx;
+                writeData <= 8'bx;
+            end
 		$monitor("t = %d	AluOpt_C = %h	", $time, AluOpt_C);
 	end
 	
+	SystemBus TestBenchApb(
+        .DoneMem(done),
+        .DatatoRead(readData),
+        .DatatoWrite(writeData),
+        .we(we),
+        .address(address),
+        .Sysclk(Sysclk));
+       
 	always 
     begin    
-        #100 Sysclk <= ~Sysclk;
-        #2000 $finish;
+        #10 Sysclk <= ~Sysclk;
    end
 endmodule
