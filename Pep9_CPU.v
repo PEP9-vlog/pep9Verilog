@@ -50,55 +50,55 @@ module Top_Pep9CPU(
                 if(Ftch == 1'b1)
                 begin
                     if(DoneFtch == 1'b1) 
+                    begin
+                        Ftch <= 1'b0;
                         state <= s1;
+                    end
                 end
                 else
                 begin
-                    Ftch <= 1'b1;  
-                    Dec <= 1'b0;  
-                    Ex <= 1'b0;  
-                    St <= 1'b0; 
+                    Ftch <= 1'b1;   
                 end
                 
           s1: //Decode
               if(Dec == 1'b1)
               begin
                   if(DoneDec == 1'b1) 
+                  begin
+                      Dec <= 1'b0;
                       state <= s2;
+                  end
               end
               else
               begin
-                  Ftch <= 1'b0;
-                  Dec <= 1'b1;  
-                  Ex <= 1'b0;  
-                  St <= 1'b0;  
+                  Dec <= 1'b1;    
               end     
           
           s2: //Execute
               if(Ex == 1'b1)
               begin
                   if(DoneExec == 1'b1) 
-                      state <= s3;
+                  begin
+                        Ex <= 1'b0;
+                        state <= s3;
+                  end
               end
               else
-              begin
-                  Ftch <= 1'b0;
-                  Dec <= 1'b0;  
+              begin  
                   Ex <= 1'b1;  
-                  St <= 1'b0;  
               end       
                   
           s3: //Store
               if(St == 1'b1)
               begin
                   if(DoneSt == 1'b1) 
-                      state <= s1;
+                  begin
+                    St <= 1'b0;
+                    state <= s0;
                   end
+              end
               else
-              begin
-                  Ftch <= 1'b0;
-                  Dec <= 1'b0;  
-                  Ex <= 1'b0;  
+              begin  
                   St <= 1'b1;  
               end
                   
@@ -131,9 +131,9 @@ module Fetch(
     initial 
     begin
 		FetchState <= 2'd0;
-        LoadCk <= 'b0;
-        MARCk <= 'b0;
-        apbclocken <= 'b0;
+        LoadCk <= 1'b0;
+        MARCk <= 1'b0;
+        apbclocken <= 1'b0;
     end
     
     always@(posedge Sysclk)
@@ -143,8 +143,8 @@ module Fetch(
 			case(FetchState)
 			2'd0: //reg set for PC to on Abus and Bbus
 					begin
-						A <= 6;
-						B <= 7;
+						A <= 5'd6;
+						B <= 5'd7;
 						LoadCk <= 1'b1;
 						FetchState <= 2'd1;
 					end
@@ -175,13 +175,28 @@ module Fetch(
 	end
     
     //Get PC
-    RegSet loadpc( PC[15:8],  PC[7:0], Sysclk, 'bz, A, B,  'bz, LoadCk);
+    RegSetAbs loadpc(
+       .Abus(PC[15:8]), 
+       .Bbus(PC[7:0]), 
+       .Sysclk(Sysclk),
+       .Cbus(8'bz), 
+       .A(A), 
+       .B(B), 
+       .C(5'bz), 
+       .LoadCk(LoadCk)
+    );
         
     //Form 16-bit address
-    AccessMAR loadaddr(address , Sysclk, MARCk,PC[15:8], PC[7:0]);
+    AccessMAR loadaddr(
+		.MAROut(address),
+		.Sysclk(Sysclk),
+		.MARCk(MARCk),
+		.MARA(PC[15:8]),  
+		.MARB(PC[7:0])  
+	);
         
     //Get instruciton specifier from memory
-   SystemBus Pep9apbftch(
+    SystemBus Pep9apbftch(
         .DoneMem(donemem),
         .DatatoRead(InstructionSpecifier),
         .DatatoWrite('bz),
@@ -193,20 +208,20 @@ endmodule
 
 //Decode: Instruction decode to identify type of operation and its operands
 module Decode(
- output reg DoneDec,
- output reg [4:0] OutReg, 
- output reg [7:0] Oprnd1, 
- output reg [7:0] Oprnd2, 
- output reg [3:0] alu_ctrl, 
- input Dec, 
- input Sysclk, 
- input [7:0] InstructionSpecifier);
+    output reg DoneDec,
+    output reg [4:0] OutReg, 
+    output reg [7:0] Oprnd1, 
+    output reg [7:0] Oprnd2, 
+    output reg [3:0] alu_ctrl, 
+    input Dec, 
+    input Sysclk, 
+    input [7:0] InstructionSpecifier);
 
     reg r, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux;
     reg [4:0] A,B;
     reg [2:0] DecodeState,DecodeStateBuf, direct_state;
     wire MemDone;
-    wire [7:0] Abus, Bbus, DataBus, MDROut, MDRInp;
+    wire [7:0] Abus, AMuxAbus, Bbus, DataBus, MDROut, MDRInp;
     wire [15:0] address;
       
     initial 
@@ -231,7 +246,7 @@ module Decode(
         begin
             //check unary or non unary
             if(InstructionSpecifier[7:4] > 4'd0)
-            begin
+            begin   //Non-Unary
                 case(DecodeState)
                 3'd0:   //Fetch OS higher byte
                         DecodeState <= 3'd1;
@@ -241,294 +256,307 @@ module Decode(
                         
                 3'd2:   //Addressing mode and Oprnd2
                         begin
-						AddressingMode(DecodeStateBuf, direct_state, A, B, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, MemDone, InstructionSpecifier[2:0]); 						
-                        DecodeState <= DecodeStateBuf;
+                        AddressingMode(InstructionSpecifier[2:0]);
                         end 
+                        
                 3'd3:   //Decode operation 
                         begin
 						LoadCk <= 1'b0;
-                        NonUnaryOperationDecode(alu_ctrl,A,OutReg,InstructionSpecifier[7:3]);
+                        NonUnaryOperationDecode(InstructionSpecifier[7:3]);
                         LoadCk <= 1'b1;
                         DecodeState <= 3'd4;
                         end  
+                        
                 3'd4:   //Assign Operands
                         begin
                         LoadCk <= 1'b0;
-                        Oprnd1 <= Abus;
+                        A <= 5'bz;
+                        B <= 5'bz;
+                        Oprnd1 <= AMuxAbus;
                         Oprnd2 <= Bbus;
                         DoneDec <= 1'b1;
                         end 
                 endcase
             end
-            else
+            else    //Unary
             begin
                 r <=  InstructionSpecifier[0];                
-                UnaryOperationDecode(alu_ctrl,InstructionSpecifier[3:1]);
+                UnaryOperationDecode(InstructionSpecifier[3:1]);
                 if(InstructionSpecifier[7:1] == 7'b0001000) 
                     alu_ctrl <= 4'b1110;
                 //if(InstructionSpecifier[7:1] == 7'b0010011) //NOP?
 //                        alu_ctrl <= 4'b1110;
                 OutReg <= r? 5'd3: 5'd1;
                 A <= r? 5'd3: 5'd1;
-                B <= 'bz;
+                B <= 5'bz;
                 LoadCk <= 1'b1;
                 DoneDec <= 1'b1;
             end
             
         end
     end
-        
-    RegSet DecInputs(Abus, Bbus, Sysclk,'bz, A, B, 'bz, LoadCk);
-    AccessMAR DecMAR( address, Sysclk, MARCk,Abus, Bbus);
+    
+    //Instantiations    
+    RegSetAbs DecInputs(
+       .Abus(Abus), 
+        .Bbus(Bbus), 
+        .Sysclk(Sysclk),
+        .Cbus(8'bz), 
+        .A(A), 
+        .B(B), 
+        .C(5'bz), 
+        .LoadCk(LoadCk)
+    );
+    
+	AccessMAR DecMAR(
+		.MAROut(address),
+		.Sysclk(Sysclk),
+		.MARCk(MARCk),
+		.MARA(Abus),  
+		.MARB(Bbus)  
+	);
     
     SystemBus Decapb(
         .DoneMem(MemDone),
         .DatatoRead(DataBus),
-        .DatatoWrite('bz),
-        .we('b0),
+        .DatatoWrite(8'bz),
+        .we(1'b0),
         .address(address),
-        .Sysclk(ApbClockEn ? Sysclk: 'b0));
+        .Sysclk(ApbClockEn ? Sysclk: 1'b0));
         
-    Mux DecMDRMux( MDRInp, Sysclk, DataBus, 'bz, MDRMux);
-    AccessMDR DecMDR( MDROut, Sysclk, MDRCk, MDRInp );
-    Mux DecAMux( Bbus, Sysclk, MDROut, Bbus, Amux); //Should be A bus
-    
-    task UnaryOperationDecode;
-        output [3:0] alu_ctrl;
-        input [2:0] opcode;
-        case(opcode)
-        3'd3:    //Not r
-                alu_ctrl = 4'b1010;
-        
-        3'd4:    //NeG r
-                alu_ctrl = 4'b1010;
-        
-        3'd5:    //ASL r
-                alu_ctrl = 4'b1011;
-        
-        3'd6:    //ASR r
-                alu_ctrl = 4'b1101;
-        
-        3'd7:    //ROL r
-                alu_ctrl = 4'b1100;
-        endcase
-    endtask
-    
-        task NonUnaryOperationDecode;
-        output [3:0] alu_ctrl;
-        output [4:0] A;
-        output [4:0] OutReg;
-        input [4:0] opcode;
-        case(opcode[4:1])
-        4'd5:    //SP
-                begin
-                A = 5'd5;
-                OutReg = 5'd5;
-                if(opcode[0])
-                    alu_ctrl = 4'b0011;
-                else
-                    alu_ctrl = 4'b0001;
-                end
-        
-        4'd6:   //ADD r
-                begin
-                alu_ctrl = 4'b0001;
-                if(opcode[0])
-                    A = 5'd3;
-                else
-                    A = 5'd1;
-                OutReg = A;
-                end
-        
-        4'd7:   //SUB r
-                begin
-                alu_ctrl = 4'b0011;
-                if(opcode[0])
-                    begin
-                    A = 5'd3;
-                    
-                    end
-                else
-                    A = 5'd1;
-                OutReg = A;
-                end
-        
-        4'd8:   //AND r
-                begin
-                alu_ctrl = 4'b0101;
-                if(opcode[0])
-                    A = 5'd3;
-                else
-                    A = 5'd1;
-                end
-        
-        4'd9:    //OR r
-                begin
-                alu_ctrl = 4'b0111;
-                if(opcode[0])
-                    A = 5'd3;
-                else
-                    A = 5'd1;
-                OutReg = A;
-                end       
-        
-        4'd10:    //CMPw r
-                begin
-                alu_ctrl = 4'b0011;
-                if(opcode[0])
-                    A = 5'd3;
-                else
-                    A = 5'd1;
-                OutReg = 5'd11;    //T1 reg
-                end
-        
-        4'd11:    //CMPb r
-                begin
-                alu_ctrl = 4'b0011;
-                if(opcode[0])
-                    A = 5'd3;
-                else
-                    A = 5'd1;
-                OutReg = 5'd11;    //T1 reg
-                end
-        
-        4'd12:   //LDw r
-                begin
-                alu_ctrl = 4'b0000;
-                if(opcode[0])
-                    OutReg = 5'd3;
-                else
-                    OutReg = 5'd1;            
-                end
-        
-        4'd13:   //LDb r
-                begin
-                alu_ctrl = 4'b0000;
-                if(opcode[0])
-                    OutReg = 5'd3;
-                else
-                    OutReg = 5'd1;
-                end
-        
-        4'd14:   //STw r
-                begin
-                alu_ctrl = 4'b0000;
-                if(opcode[0])
-                    A = 5'd3;
-                else
-                    A = 5'd1;
-                end        
-                
-        4'd15:   //STb r
-                begin
-                alu_ctrl = 4'b0000;
-                if(opcode[0])
-                    A = 5'd3;
-                else
-                    A = 5'd1;
-                end
-          default: ;      
-        endcase
-    endtask
-    
-    task AddressingMode;
-        output DecodeStateBuf;
-        output direct_state;
-        output [4:0] A;
-		output [4:0] B;
-        output LoadCk;
-        output MARCk;
-        output ApbClockEn;
-        output MDRMux;
-        output MDRCk;
-        output Amux; 
-        input MemDone;
-        input [2:0] aaa;
-        //input [15:0] OperationSpecifier;
-        case(aaa)
-        3'd0:    //Immediate
-                begin
-                    B <= 5'd10;
-                    LoadCk <= 1'b1;
-                    DecodeStateBuf <= 3'd3;
-                end
-        3'd1:   //Direct
-                begin
-                    DirectAddressing(direct_state, A, B,LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, DecodeStateBuf, MemDone);
-                end
-                
-        default: ;        
-        endcase
-    endtask
-    
-	task DirectAddressing;
-	    output [2:0] direct_state;
-		output [4:0] A;
-		output [4:0] B;
-        output LoadCk;
-        output MARCk;
-        output ApbClockEn;
-        output MDRMux;
-        output MDRCk;
-        output Amux;
-		output DecodeStateBuf;
-		input MemDone;
+    Mux DecMDRMux(
+		.Y(MDRInp),
+		.Sysclk(Sysclk),
+		.Inp1(DataBus),
+		.Inp2(8'bz),
+		.Sel(MDRMux));
 		
-		case(direct_state)
-			3'd0:	//Set Address on Abus and Bbus
+    AccessMDR DecMDR(
+		.MDROut(MDROut), 
+		.Sysclk(Sysclk),
+		.MDRCk(MDRCk),
+		.MDRInp(MDRInp));
+	
+    Mux DecAMux( 
+		.Y(AMuxAbus),
+		.Sysclk(Sysclk),
+		.Inp1(MDROut),
+		.Inp2(Abus),
+		.Sel(Amux)); 
+  
+    //Task definitions
+        //Unary alu operation decode  
+		task UnaryOperationDecode;
+			input [2:0] opcode;
+			
+			case(opcode)
+			3'd3:    //Not r
+					alu_ctrl <= 4'b1010;
+			
+			3'd4:    //NeG r
+					alu_ctrl <= 4'b1010;
+			
+			3'd5:    //ASL r
+					alu_ctrl <= 4'b1011;
+			
+			3'd6:    //ASR r
+					alu_ctrl <= 4'b1101;
+			
+			3'd7:    //ROL r
+					alu_ctrl <= 4'b1100;
+			endcase
+		endtask             //End of Unary alu operation decode 
+    
+		//Nonunary alu operation decode
+		task NonUnaryOperationDecode;
+			input [4:0] opcode;
+			case(opcode[4:1])
+			4'd5:    //SP
 					begin
-						A <= 5'd9;
+					B <= 5'd5;
+					OutReg <= 5'd5;
+					if(opcode[0])
+						alu_ctrl <= 4'b0011;
+					else
+						alu_ctrl <= 4'b0001;
+					end
+			
+			4'd6:   //ADD r
+					begin
+					alu_ctrl <= 4'b0001;
+					if(opcode[0])
+						B <= 5'd3;
+					else
+						B <= 5'd1;
+					OutReg <= B;
+					end
+			
+			4'd7:   //SUB r
+					begin
+					alu_ctrl <= 4'b0011;
+					if(opcode[0])
+						B <= 5'd3;
+					else
+						B <= 5'd1;
+					OutReg <= B;
+					end
+			
+			4'd8:   //AND r
+					begin
+					alu_ctrl <= 4'b0101;
+					if(opcode[0])
+						B <= 5'd3;
+					else
+						B <= 5'd1;
+					OutReg <= B;
+					end
+			
+			4'd9:    //OR r
+					begin
+					alu_ctrl <= 4'b0111;
+					if(opcode[0])
+						B <= 5'd3;
+					else
+						B <= 5'd1;
+					OutReg <= B;
+					end       
+			
+			4'd10:    //CMPw r
+					begin
+					alu_ctrl <= 4'b0011;
+					if(opcode[0])
+						B <= 5'd3;
+					else
+						B <= 5'd1;
+					OutReg <= 5'd11;    //T1 reg
+					end
+			
+			4'd11:    //CMPb r
+					begin
+					alu_ctrl <= 4'b0011;
+					if(opcode[0])
+						B <= 5'd3;
+					else
+					B <= 5'd1;
+					OutReg <= 5'd11;    //T1 reg
+					end
+			
+			4'd12:   //LDw r
+					begin
+					alu_ctrl <= 4'b0000;
+					if(opcode[0])
+						OutReg <= 5'd3;
+					else
+						OutReg <= 5'd1;            
+					end
+			
+			4'd13:   //LDb r
+					begin
+					alu_ctrl <= 4'b0000;
+					if(opcode[0])
+						OutReg <= 5'd3;
+					else
+						OutReg <= 5'd1;
+					end
+			
+			4'd14:   //STw r
+					begin
+					alu_ctrl <= 4'b0000;
+					if(opcode[0])
+						B <= 5'd3;
+					else
+						B <= 5'd1;
+					end        
+					
+			4'd15:   //STb r
+					begin
+					alu_ctrl <= 4'b0000;
+					if(opcode[0])
+						B <= 5'd3;
+					else
+						B <= 5'd1;
+					end
+			default: $display("Default of AddressingMode");      
+			endcase
+		endtask             //End of Nonunary alu operation decode
+    
+		//Addressing mode decode
+		task AddressingMode;
+			input [2:0] aaa;
+			
+			case(aaa)
+			3'd0:    //Immediate
+					begin
 						B <= 5'd10;
 						LoadCk <= 1'b1;
-						direct_state <= 3'd1;
+						DecodeState <= 3'd3;
 					end
-			
-			3'd1:	//AccessMAR
+			3'd1:   //Direct
 					begin
-						LoadCk <= 1'b0;
-						A <= 5'bzzzzz;
-						B <= 5'bzzzzz;
-						MARCk <= 1'b1;
-						direct_state <= 3'd2;
+						DirectAddressing();
 					end
 					
-			3'd2:	//Enable read on System Bus
-					begin
-						ApbClockEn <= 1'b1;
-						if(MemDone)
-							direct_state <= 3'd3;
-					end
-					
-			3'd3:	//MDRmux
-					begin
-						ApbClockEn <= 1'b0;
-						MDRMux <= 1'b1;
-						direct_state <= 3'd4;
-					end			
-					
-		    3'd4:	//MDR
-					begin
-						MDRMux <= 1'b0;
-						MDRCk <= 1'b1;
-						direct_state <= 3'd5;
-					end
-			
-			3'd5:	//Amux
-					begin
-						MDRCk <= 1'b0;
-						Amux <= 1'b1;
-						direct_state <= 3'd6;
-					end
-					
-			3'd6:	//Clear all control signals
-					begin
-					   Amux <= 1'b0;
-					   DecodeStateBuf <= 3'd3;
-					   direct_state <= 3'd0;
-					end
-		endcase
-		
-	endtask
+			default: $display("Default of AddressingMode");        
+			endcase
+		endtask     //End of Addressing mode decode
+    
+		//Direct addressing mode decode
+		task DirectAddressing;
+			case(direct_state)
+				3'd0:	//Set Address on Abus and Bbus
+						begin
+							A <= 5'd9;
+							B <= 5'd10;
+							LoadCk <= 1'b1;
+							direct_state <= 3'd1;
+						end
+				
+				3'd1:	//AccessMAR
+						begin
+							LoadCk <= 1'b0;
+							A <= 5'bzzzzz;
+							B <= 5'bzzzzz;
+							MARCk <= 1'b1;
+							direct_state <= 3'd2;
+						end
+						
+				3'd2:	//Enable read on System Bus
+						begin
+							ApbClockEn <= 1'b1;
+							if(MemDone)
+								direct_state <= 3'd3;
+						end
+						
+				3'd3:	//MDRmux
+						begin
+							ApbClockEn <= 1'b0;
+							MDRMux <= 1'b1;
+							direct_state <= 3'd4;
+						end			
+						
+				3'd4:	//MDR
+						begin
+							MDRMux <= 1'b0;
+							MDRCk <= 1'b1;
+							direct_state <= 3'd5;
+						end
+				
+				3'd5:	//Amux
+						begin
+							MDRCk <= 1'b0;
+							Amux <= 1'b1;
+							direct_state <= 3'd6;
+						end
+						
+				3'd6:	//Clear all control signals
+						begin
+						Amux <= 1'b0;
+						DecodeState <= 3'd3;
+						direct_state <= 3'd0;
+						end
+				default: $display("Default of DirectAddressingMode");  
+			endcase
+		endtask    //End of Direct addressing mode decode
 	
 endmodule
 
@@ -552,50 +580,60 @@ module Execute(
 
     initial 
     begin 
-        DoneEx = 'b0;
+        DoneEx <= 1'b0;
     end
-    
-
-    
-	ALU alu_exe1(AluOpt_C, S, C, V, Z, N, Ex, Sysclk, AluInp1_A, AluInp2_B,  alu_control,  Cin );
-	
+  
+	ALU alu_exe1(
+	.AluOpt_C(AluOpt_C),  
+    .S(S), 
+    .C(C),
+	.V(V),
+	.Z(Z),
+	.N(N),
+    .alu_enable(Ex),
+    .Sysclk(Sysclk),
+    .AluInp1_A(AluInp1_A),  
+    .AluInp2_B(AluInp2_B), 
+    .alu_control(alu_control), 
+    .Cin(Cin));
+		
 	always@(AluOpt_C)
 	begin
-	       DoneEx = 1'b1;
+	       DoneEx <= 1'b1;
 	end
 	       
 endmodule
 
 //Execute - ALU
 module ALU(
- output reg [7:0] AluOpt_C,  //result 
- output reg S, 
- output reg C,
- output reg V,
- output reg Z,
- output reg N,
- input alu_enable,
- input Sysclk,
- input  [7:0] AluInp1_A,  //AluInp1_A
- input  [7:0] AluInp2_B,  //AluInp2_B
- input  [3:0] alu_control, //ALU control for operation perform
- input  Cin //Carry-in
+	output reg [7:0] AluOpt_C,  //result 
+	output reg S, 
+	output reg C,
+	output reg V,
+	output reg Z,
+	output reg N,
+	input alu_enable,
+	input Sysclk,
+	input  [7:0] AluInp1_A,  //AluInp1_A
+	input  [7:0] AluInp2_B,  //AluInp2_B
+	input  [3:0] alu_control, //ALU control for operation perform
+	input  Cin //Carry-in
     );
 	
 	reg Cout, Sout, Vout, Zout, Nout, CCk, SCk, NCk, VCk, AndZ, ZCk;
     
     initial begin
-        Cout = 1'b0;
-        Sout = 1'b0;
-        Zout = 1'b0;
-        Vout = 1'b0;
-        Nout = 1'b0;        
-        CCk = 1'b0;
-        SCk = 1'b0;
-        ZCk = 1'b0;
-        VCk = 1'b0;
-        NCk = 1'b0;
-        AndZ = 1'b0;
+        Cout <= 1'b0;
+        Sout <= 1'b0;
+        Zout <= 1'b0;
+        Vout <= 1'b0;
+        Nout <= 1'b0;        
+        CCk <= 1'b0;
+        SCk <= 1'b0;
+        ZCk <= 1'b0;
+        VCk <= 1'b0;
+        NCk <= 1'b0;
+        AndZ <= 1'b0;
     end
     
 	always@(posedge Sysclk)
@@ -817,37 +855,63 @@ endmodule
 
 //Store: stores the result of the operation perfomed to Reg File
 module Store(
- output reg DoneSt,
- input St,
- input Sysclk,
- input [4:0] OutReg,
- input [7:0] OutputData);
+	output reg DoneSt,
+	input St,
+	input Sysclk,
+	input [4:0] OutReg,
+	input [7:0] OutputData);
 
     wire [7:0] Abus, Bbus;
-    reg LoadCk;
+    reg LoadCk, StoreState;
+    reg [4:0] C;
     
     initial 
     begin 
-        LoadCk = 1'b0; 
+        DoneSt <= 1'b0; 
+        LoadCk <= 1'b0; 
+        StoreState <= 1'b0; 
+        C <= 5'bz;
     end
     
     always@(posedge Sysclk)
     begin
         if(St)
         begin
-            LoadCk = 1'b1;
-            #100 DoneSt <= 1'b1;
+            case(StoreState)
+            1'b0:   //Reg set store
+                    begin
+                    LoadCk <= 1'b1;
+                    C <= OutReg;
+                    StoreState <= 1'b1;
+                    end
+            1'b1:   //Signal done
+                    begin
+                    LoadCk <= 1'b0;
+                    C <= 5'bz;
+                    DoneSt <= 1'b1;
+                    StoreState <= 1'b0;
+                    end
+            endcase
         end
         else
-            LoadCk = 1'b0;
+            LoadCk <= 1'b0;
     end
     
-    RegSet stores(Abus, Bbus, Sysclk, OutputData, 'bz, 'bz, OutReg, LoadCk);
+	RegSetAbs storeres(
+        .Abus(Abus), 
+        .Bbus(Bbus), 
+        .Sysclk(Sysclk),
+        .Cbus(OutputData), 
+        .A(5'bz), 
+        .B(5'bz), 
+        .C(C), 
+        .LoadCk(LoadCk)
+    );
 
 endmodule
 
 
-//Helper modules
+//Abstract to CPU contents
 //System Bus: APB
 module SystemBus(
     output DoneMem,
@@ -866,6 +930,31 @@ module SystemBus(
 
 endmodule
 
+//RegSetAbs: Abstraction layer to single RegSet of Pep9 CPU
+module RegSetAbs(
+    output [7:0] Abus, 
+    output [7:0] Bbus, 
+    input Sysclk,
+    input [7:0] Cbus, 
+    input [4:0] A, 
+    input [4:0] B, 
+    input [4:0] C, 
+    input LoadCk);
+
+    RegSet Pep9RegSet(
+	.Abus(Abus), 
+	.Bbus(Bbus), 
+	.Sysclk(Sysclk),
+	.Cbus(Cbus), 
+	.A(A), 
+	.B(B), 
+	.C(C), 
+	.LoadCk(LoadCk)
+	);
+
+endmodule
+
+//Helper modules
 //Reg file
 module RegSet(
 	output reg [7:0] Abus, 
@@ -884,23 +973,23 @@ module RegSet(
     reg [7:0] T1;
     
     initial begin 
-        PC = 16'h0;
-        SP = 16'hFB8F;
-        IR = 24'd0;
-        AReg = 16'd0;
-        X = 16'd0;
-        M1 = 16'h0001;
-        M2 = 16'h0203;
-        M3 = 16'h0408;
-        M4 = 16'hF0F6;
-        M5 = 16'hFEFF;
+        PC <= 16'h0;
+        SP <= 16'hFB8F;
+        IR <= 24'd0;
+        AReg <= 16'd0;
+        X <= 16'd0;
+        M1 <= 16'h0001;
+        M2 <= 16'h0203;
+        M3 <= 16'h0408;
+        M4 <= 16'hF0F6;
+        M5 <= 16'hFEFF;
         //Temperory Regs
-        T1 = 8'd0;
-        T2 = 16'd0;
-        T3 = 16'd0;
-        T4 = 16'd0;
-        T5 = 16'd0;
-        T6 = 16'd0;
+        T1 <= 8'd0;
+        T2 <= 16'd0;
+        T3 <= 16'd0;
+        T4 <= 16'd0;
+        T5 <= 16'd0;
+        T6 <= 16'd0;
      end
 	
 	
