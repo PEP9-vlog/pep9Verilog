@@ -123,17 +123,19 @@ module Fetch(
  input Ftch 
  );
     
+    wire DonePCInc;
     wire [15:0] PC, address;
-    reg LoadCk, MARCk, apbclocken;
-	reg [1:0] FetchState;
+    reg LoadCk, MARCk, apbclocken, Enftch;
+	reg [2:0] FetchState;
 	reg [4:0] A, B;
     
     initial 
     begin
-		FetchState <= 2'd0;
+		FetchState <= 3'd0;
         LoadCk <= 1'b0;
         MARCk <= 1'b0;
         apbclocken <= 1'b0;
+        Enftch <= 1'b0;
     end
     
     always@(posedge Sysclk)
@@ -141,35 +143,52 @@ module Fetch(
 		if(Ftch)
 		begin
 			case(FetchState)
-			2'd0: //reg set for PC to on Abus and Bbus
+			3'd0: //reg set for PC to on Abus and Bbus
 					begin
 						A <= 5'd6;
 						B <= 5'd7;
 						LoadCk <= 1'b1;
-						FetchState <= 2'd1;
+						FetchState <= 3'd1;
 					end
 					
-			2'd1: //MAR
+			3'd1: //MAR
 					begin
 						A <= 'bz;
 						B <= 'bz;
 						LoadCk <= 1'b0;
 						MARCk <= 1'b1;
-						FetchState <= 2'd2;
+						FetchState <= 3'd2;
 					end
-			2'd2: //Memory Read
+			3'd2: //Memory Read
 					begin
 				        MARCk <= 'b0;
 						apbclocken <= 1'b1;
-						FetchState <= 2'd3;
+						FetchState <= 3'd3;
 					end			
 			
-			2'd3: //Chck for mem operation complete
+			3'd3: //Chck for mem operation complete
 					begin
 				        if(donemem)
+				        begin
 							apbclocken <= 0;
-						FetchState <= 2'd0;
+						    FetchState <= 3'd4;
+						end
 					end
+		  
+		      3'd4: //Increment PC
+		          begin
+		              Enftch <= 1'd1;
+		              FetchState <= 3'd5;
+		          end
+		      
+		      3'd5: //Check if PC incremented
+		          begin
+		              if(DonePCInc)
+		              begin
+		                  Enftch <= 1'd0;
+		                  FetchState <= 3'd0;
+		              end
+		          end
 			endcase
 		end
 	end
@@ -203,6 +222,13 @@ module Fetch(
         .we('b0),
         .address(address),
         .Sysclk(apbclocken ? Sysclk: 'b0));
+       
+     //Increment PC 
+      PCIncrementer PCIncrftch( 
+        .DonePCInc(DonePCInc),
+        .Sysclk(Sysclk),
+        .En(Enftch)
+        );  
        
 endmodule
 
@@ -343,12 +369,13 @@ module Decode(
 		.MDRCk(MDRCk),
 		.MDRInp(MDRInp));
 	
-    Mux DecAMux( 
-		.Y(AMuxAbus),
-		.Sysclk(Sysclk),
-		.Inp1(MDROut),
-		.Inp2(Abus),
-		.Sel(Amux)); 
+    AMuxAbs DecAMux(
+           .AMuxAbus(AMuxAbus),
+           .Sysclk(Sysclk),
+           .Abus(Abus),
+           .MDR(MDROut),
+           .AMux(Amux)
+        );  
   
     //Task definitions
         //Unary alu operation decode  
@@ -575,7 +602,7 @@ module Decode(
                     begin
                         MemReadDoneSignal <= 1'b1;
                         MDRCk <= 1'b0;
-                        Amux <= 1'b1;
+                        Amux <= 1'b0;
                         MemReadState <= 3'd0;
                     end
                     
@@ -984,7 +1011,166 @@ module RegSetAbs(
 
 endmodule
 
+//Abstraction for Amux
+module AMuxAbs(
+   output [7:0] AMuxAbus,
+   input Sysclk,
+   input [7:0] Abus,
+   input [7:0] MDR,
+   input AMux
+);
+
+    Mux Amultiplexer(
+	.Y(AMuxAbus),
+	.Sysclk(Sysclk),
+	.Inp1(Abus),
+	.Inp2(MDR),
+	.Sel(AMux)
+    );
+    
+endmodule
+
+//Abstraction for Cmux
+module CMuxAbs(
+   output [7:0] Cbus,
+   input Sysclk,
+   input [7:0] AluOpt,
+   input [7:0] Flags,
+   input CMux
+);
+
+    Mux Cmultiplexer(
+	.Y(Cbus),
+	.Sysclk(Sysclk),
+	.Inp1(AluOpt),
+	.Inp2(Flags),
+	.Sel(CMux)
+    );
+    
+endmodule
+
 //Helper modules
+//Increment PC
+module PCIncrementer( 
+    output reg DonePCInc,
+    input Sysclk,
+    input En);
+
+    wire S, Co, V, Z, N;
+    wire [7:0] Abus, Bbus, AMuxAbus, NewRegValue, Cbus;
+    reg LoadCk, Amux, alu_enable, Cmux;
+    reg [2:0] PCincState;
+    reg [3:0] alu_control;
+    reg [4:0] A, B, C;
+    
+    initial 
+    begin
+        DonePCInc <= 1'd0;
+        PCincState <= 3'd0;
+        LoadCk <= 1'b0;
+         Amux <= 1'b0;
+         alu_enable <= 1'b0;
+         Cmux <= 1'b0;
+    end 
+    
+    always@(posedge Sysclk)
+    begin
+    if(En)
+    case(PCincState)
+	3'd0: //RegSet to Abus and Bbus
+			begin
+			DonePCInc <= 1'd0;
+			A <= 5'd7;
+			B <= 5'dz;
+			C <= 5'dz;
+			LoadCk <= 1'b1;
+			PCincState <= 3'd1;
+			end
+	
+	3'd1: //Amux create common Amux module
+			begin
+				LoadCk <= 1'b0;
+				Amux <= 1'b1;
+				PCincState <= 3'd2;
+			end
+			
+	3'd2: //Alu instantitate for alu_ctrl = 'd1
+			begin			
+				alu_control <= 4'd1;
+				alu_enable <= 1'b1;
+				PCincState <= 3'd3;
+			end
+			
+	3'd3: //Cmux create common Amux module on Cbus
+			begin
+				alu_enable <= 1'b0;
+				Cmux <= 1'b1;
+				PCincState <= 3'd4;	
+			end
+
+	3'd4: //Reg Set  to store new PC
+			begin
+				A <= 5'dz;
+				B <= 5'dz;
+				C <= 5'd7;
+				LoadCk <= 1'b1;
+				PCincState <= 3'd5;
+			end
+			
+	3'd5: //reset control signals
+			begin
+				LoadCk <= 1'b0;
+				DonePCInc <= 1'd1;
+				PCincState <= 3'd0;	
+			end
+	endcase 
+	end   
+	
+	//Instantiations
+	 RegSet PCincRegset(
+       .Abus(Abus), 
+       .Bbus(Bbus), 
+       .Sysclk(Sysclk),
+       .Cbus(Cbus), 
+       .A(A), 
+       .B(B), 
+       .C(C), 
+       .LoadCk(LoadCk)
+       );
+       
+     AMuxAbs PCincAMuxAbs(
+          .AMuxAbus(AMuxAbus),
+          .Sysclk(Sysclk),
+          .Abus(Abus),
+          .MDR(8'dz),
+          .AMux(1'b1)
+       ); 
+       
+      ALU PCincALU(
+           .AluOpt_C(NewRegValue),  
+           .S(S), 
+           .C(Co),
+           .V(V),
+           .Z(Z),
+           .N(N),
+           .alu_enable(alu_enable),
+           .Sysclk(Sysclk),
+           .AluInp1_A(AMuxAbus), 
+           .AluInp2_B(8'd1), 
+           .alu_control(alu_control),
+           .Cin(1'bz) 
+           );
+           
+      CMuxAbs PCincCMuxAbs(
+            .Cbus(Cbus),
+            .Sysclk(Sysclk),
+            .AluOpt(NewRegValue),
+            .Flags(8'dz),
+            .CMux(1'b1)
+           ); 
+           
+endmodule
+
 //Reg file
 module RegSet(
 	output reg [7:0] Abus, 
