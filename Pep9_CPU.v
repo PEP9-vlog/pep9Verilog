@@ -217,9 +217,9 @@ module Decode(
     input Sysclk, 
     input [7:0] InstructionSpecifier);
 
-    reg r, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux;
+    reg r, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, MemReadDoneSignal, direct_state;
     reg [4:0] A,B;
-    reg [2:0] DecodeState,DecodeStateBuf, direct_state;
+    reg [2:0] DecodeState, MemReadState;
     wire MemDone;
     wire [7:0] Abus, AMuxAbus, Bbus, DataBus, MDROut, MDRInp;
     wire [15:0] address;
@@ -235,9 +235,10 @@ module Decode(
         A <= 5'bzzzzz;
         B <= 5'bzzzzz;
         DecodeState <= 3'd2;
-        DecodeStateBuf <= 3'd2;
+        MemReadState <= 2'd0;
+        MemReadDoneSignal <= 1'd0;
         DoneDec <= 1'b0;
-        direct_state <= 3'd0;
+        direct_state <= 1'd0;
     end
     
     always@(posedge Sysclk)
@@ -249,7 +250,11 @@ module Decode(
             begin   //Non-Unary
                 case(DecodeState)
                 3'd0:   //Fetch OS higher byte
-                        DecodeState <= 3'd1;
+                        begin
+                            MemRead( 5'd6, 5'd7);
+                            if(MemReadDoneSignal)
+                                DecodeState <= 3'd1;
+                        end
                         
                 3'd1:   //Fecth OS lower byte
                         DecodeState <= 3'd2;
@@ -262,6 +267,7 @@ module Decode(
                 3'd3:   //Decode operation 
                         begin
 						LoadCk <= 1'b0;
+                        MemReadDoneSignal <= 1'b0;
                         NonUnaryOperationDecode(InstructionSpecifier[7:3]);
                         LoadCk <= 1'b1;
                         DecodeState <= 3'd4;
@@ -503,61 +509,80 @@ module Decode(
 		//Direct addressing mode decode
 		task DirectAddressing;
 			case(direct_state)
-				3'd0:	//Set Address on Abus and Bbus
+				1'b0:	//Set Address on Abus and Bbus
 						begin
-							A <= 5'd9;
-							B <= 5'd10;
-							LoadCk <= 1'b1;
-							direct_state <= 3'd1;
-						end
-				
-				3'd1:	//AccessMAR
-						begin
-							LoadCk <= 1'b0;
-							A <= 5'bzzzzz;
-							B <= 5'bzzzzz;
-							MARCk <= 1'b1;
-							direct_state <= 3'd2;
+                            MemRead( 5'd9, 5'd10 );
+							if(MemReadDoneSignal)
+								direct_state <= 1'b1;
 						end
 						
-				3'd2:	//Enable read on System Bus
+				1'b1:	//Clear all control signals
 						begin
-							ApbClockEn <= 1'b1;
-							if(MemDone)
-								direct_state <= 3'd3;
+						    MemReadDoneSignal <= 1'b0;
+						    DecodeState <= 3'd3;
+						    direct_state <= 1'b0;
 						end
 						
-				3'd3:	//MDRmux
-						begin
-							ApbClockEn <= 1'b0;
-							MDRMux <= 1'b1;
-							direct_state <= 3'd4;
-						end			
-						
-				3'd4:	//MDR
-						begin
-							MDRMux <= 1'b0;
-							MDRCk <= 1'b1;
-							direct_state <= 3'd5;
-						end
-				
-				3'd5:	//Amux
-						begin
-							MDRCk <= 1'b0;
-							Amux <= 1'b1;
-							direct_state <= 3'd6;
-						end
-						
-				3'd6:	//Clear all control signals
-						begin
-						Amux <= 1'b0;
-						DecodeState <= 3'd3;
-						direct_state <= 3'd0;
-						end
 				default: $display("Default of DirectAddressingMode");  
 			endcase
 		endtask    //End of Direct addressing mode decode
-	
+
+        //Read from memor with address from RegSet
+        task MemRead;
+           input [4:0] HighAddrReg;
+           input [4:0] LowAddrsReg;
+    
+           case(MemReadState)
+                3'd0:    //Set Address on Abus and Bbus
+                    begin
+                       A <= HighAddrReg;
+                       B <= LowAddrsReg;
+                       LoadCk <= 1'b1;
+                       MemReadState <= 3'd1;
+                    end
+        
+                3'd1:    //AccessMAR
+                    begin
+                       LoadCk <= 1'b0;
+                       A <= 5'bzzzzz;
+                       B <= 5'bzzzzz;
+                       MARCk <= 1'b1;
+                       MemReadState <= 3'd2;
+                    end
+                
+                3'd2:    //Enable read on System Bus
+                    begin
+                       ApbClockEn <= 1'b1;
+                       if(MemDone)
+                          MemReadState <= 3'd3;
+                    end
+                
+                3'd3:    //MDRmux
+                    begin
+                        ApbClockEn <= 1'b0;
+                        MDRMux <= 1'b1;
+                        MemReadState <= 3'd4;
+                    end            
+                        
+                3'd4:    //MDR
+                    begin
+                        MDRMux <= 1'b0;
+                        MDRCk <= 1'b1;
+                        MemReadState <= 3'd5;
+                    end
+                
+                3'd5:    //Amux
+                    begin
+                        MemReadDoneSignal <= 1'b1;
+                        MDRCk <= 1'b0;
+                        Amux <= 1'b1;
+                        MemReadState <= 3'd0;
+                    end
+                    
+                 default: $display("Default of MemRead"); 
+           endcase
+        endtask    //End of MemRead    
+           
 endmodule
 
 
@@ -634,6 +659,11 @@ module ALU(
         VCk <= 1'b0;
         NCk <= 1'b0;
         AndZ <= 1'b0;
+        S <= 1'b0; 
+        C <= 1'b0;
+        V <= 1'b0;
+        Z <= 1'b0;
+        N <= 1'b0;
     end
     
 	always@(posedge Sysclk)
@@ -653,12 +683,12 @@ module ALU(
                 end
         
         4'd1: begin
-                {Cout,AluOpt_C} <= AluInp1_A + AluInp2_B; 
+                {Cout,AluOpt_C} = AluInp1_A + AluInp2_B; 
                 //status bits    
                 //Cout <= ??
-                Zout <= (AluOpt_C == 8'd0)? 1'd1 : 1'd0;
-                Nout <= (AluOpt_C[7] == 1'b1 )? 1'd1: 1'd0; 
-                Vout <= ((AluInp1_A[7] == 'b0) && (AluInp2_B[7] == 'b0) && (AluOpt_C[7] == 'b1)) || ((AluInp1_A[7] == 'b1) && (AluInp2_B[7] == 'b1) && (AluOpt_C[7] == 'b0))? 1'd1: 1'd0; 
+                Zout <= (AluOpt_C == 8'd0)? 1'b1 : 1'b0;
+                Nout <= (AluOpt_C[7] == 1'b1 )? 1'b1: 1'b0; 
+                Vout <= ((AluInp1_A[7] == 1'b0) && (AluInp2_B[7] == 1'b0) && (AluOpt_C[7] == 1'b1)) || ((AluInp1_A[7] == 1'b1) && (AluInp2_B[7] == 1'b1) && (AluOpt_C[7] == 1'b0))? 1'b1: 1'b0; 
                 CCk <= 1'd1;
                 VCk <= 1'd1;
                 end
