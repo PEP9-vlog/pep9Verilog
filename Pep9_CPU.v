@@ -243,11 +243,11 @@ module Decode(
     input Sysclk, 
     input [7:0] InstructionSpecifier);
 
-    reg r, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, MemReadDoneSignal, direct_state;
-    reg [4:0] A,B;
-    reg [2:0] DecodeState, MemReadState;
-    wire MemDone;
-    wire [7:0] Abus, AMuxAbus, Bbus, DataBus, MDROut, MDRInp;
+    reg r, LoadCk, MARCk, ApbClockEn, MDRMux, MDRCk, Amux, MemReadDoneSignal, direct_state, CMux, alu_enable;
+    reg [4:0] A, B, C;
+    reg [2:0] DecodeState, MemReadState, FtchOprndSpecState;
+    wire MemDone, Co, S, N, Z, V;
+    wire [7:0] Abus, AMuxAbus, Bbus, Cbus, DataBus, MDROut, MDRInp, AluOpt;
     wire [15:0] address;
       
     initial 
@@ -260,11 +260,14 @@ module Decode(
         Amux <= 1'd0;
         A <= 5'bzzzzz;
         B <= 5'bzzzzz;
+        C <= 5'bzzzzz;
         DecodeState <= 3'd2;
-        MemReadState <= 2'd0;
+        MemReadState <= 3'd0;
+        FtchOprndSpecState <= 3'd0;
         MemReadDoneSignal <= 1'd0;
         DoneDec <= 1'b0;
         direct_state <= 1'd0;
+        alu_enable <= 1'd0;
     end
     
     always@(posedge Sysclk)
@@ -277,13 +280,11 @@ module Decode(
                 case(DecodeState)
                 3'd0:   //Fetch OS higher byte
                         begin
-                            MemRead( 5'd6, 5'd7);
-                            if(MemReadDoneSignal)
-                                DecodeState <= 3'd1;
+                            FtchOprndSpec(DecodeState, 5'd9);
                         end
                         
                 3'd1:   //Fecth OS lower byte
-                        DecodeState <= 3'd2;
+                       FtchOprndSpec(DecodeState, 5'd10);
                         
                 3'd2:   //Addressing mode and Oprnd2
                         begin
@@ -333,10 +334,10 @@ module Decode(
        .Abus(Abus), 
         .Bbus(Bbus), 
         .Sysclk(Sysclk),
-        .Cbus(8'bz), 
+        .Cbus(Cbus), 
         .A(A), 
         .B(B), 
-        .C(5'bz), 
+        .C(C), 
         .LoadCk(LoadCk)
     );
     
@@ -377,6 +378,29 @@ module Decode(
            .AMux(Amux)
         );  
   
+    CMuxAbs DecCMux(
+           .Cbus(Cbus),
+           .Sysclk(Sysclk),
+           .AluOpt(AluOpt),
+           .Flags(8'dz),
+           .CMux(CMux)
+        );
+        
+     ALU DecALU(
+             .AluOpt_C(AluOpt),  
+             .S(S), 
+             .C(Co),
+             .V(V),
+             .Z(Z),
+             .N(N),
+             .alu_enable(alu_enable),
+             .Sysclk(Sysclk),
+             .AluInp1_A(AMuxAbus), 
+             .AluInp2_B(8'dz), 
+             .alu_control(alu_ctrl),
+             .Cin(1'bz) 
+             );    
+        
     //Task definitions
         //Unary alu operation decode  
 		task UnaryOperationDecode;
@@ -609,6 +633,50 @@ module Decode(
                  default: $display("Default of MemRead"); 
            endcase
         endtask    //End of MemRead    
+        
+        //Fetch Operand Specifier
+        task FtchOprndSpec;
+            input DecodeStateBuf;
+            input [4:0] RegNo;
+            
+            case(FtchOprndSpecState)
+                3'd0: //MemRead till Alu input 
+                        begin
+                        MemRead( 5'd6, 5'd7);
+                        if(MemReadDoneSignal)
+                            FtchOprndSpecState <= 3'd1;
+                        end
+                3'd1: //Alu to pass data to Regset
+                        begin
+                            alu_ctrl <= 4'b0000;
+                            alu_enable <= 1'd1;
+                            FtchOprndSpecState <= 3'd2;
+                        end    
+              
+                3'd2: //Cmux
+                        begin
+                            alu_enable <= 1'b0;
+                            CMux <= 1'b1;
+                            FtchOprndSpecState <= 3'd2;
+                        end
+                        
+               3'd3: //Store to Regset
+                        begin
+                            A <= 5'dz;
+                            B <= 5'dz;
+                            C <= RegNo;
+                            LoadCk <= 1'd1;
+                            FtchOprndSpecState <= 3'd4;
+                        end
+                        
+                3'd4: //Reset alll cotorl signals
+                        begin
+                            LoadCk <= 1'd0;
+                            DecodeState <= DecodeStateBuf + 3'd1;
+                            FtchOprndSpecState <= 3'd0;   
+                        end
+            endcase
+        endtask    //End of FtchOprndSpec    
            
 endmodule
 
